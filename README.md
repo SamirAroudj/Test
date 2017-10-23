@@ -1,2 +1,2 @@
 # Test
-For testing of stuff.
+For testing stuff.
