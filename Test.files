@@ -1,7 +1,14 @@
 CMakeLists.txt
 Cuda.cmake.txt
+Exercises.cpp
+Exercises.h
 LICENSE
 Main.cpp
+Networks/00Quickstart.py
+Networks/01Tensors.py
+Networks/02DatasetsAndLoaders.py
 README.md
 TestCuda.cu
 TestCuda.h
+TestEigen.cpp
+TestEigen.h

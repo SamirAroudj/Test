@@ -17,6 +17,7 @@ project(Test)
 set(componentName Test)
 set(appName TestApp)
 set(componentPath ${PROJECT_SOURCE_DIR})
+option(CUDA "Make use of CUDA." OFF)
 
 
 # required C++ standard
@@ -51,23 +52,21 @@ if (MSVC)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4")
 endif()
 
-include(Cuda.cmake.txt)
+if (CUDA)
+    include(Cuda.cmake.txt)
+endif()
 
 # CMake files
 set(cmakeFiles
     ${componentPath}/CMakeLists.txt
 )
 
-# header files
-set(headerFiles
-    ${componentPath}/TestCuda.h
-)
-
-# source files
-set(sourceFiles
-    ${componentPath}/Main.cpp
-    ${componentPath}/TestCuda.cu
-)
+# find source code
+set(testPath ${componentPath})
+file(GLOB headerFiles "${testPath}/*.h")
+file(GLOB testCPPFiles "${testPath}/*.cpp")
+file(GLOB testCudaFiles "${testPath}/*.cu")
+file(GLOB sourceFiles ${testCPPFiles} ${testCudaFiles})
 
 # get all file groups together
 set(sourceCode
@@ -79,7 +78,11 @@ set(sourceCode
 )
 
 # define executable
-cuda_add_executable(${appName} ${sourceCode})
+if (CUDA)
+    cuda_add_executable(${appName} ${sourceCode})
+else()
+    add_executable(${appName} ${sourceCode})
+endif()
 
 # required libs
 set(requiredLibs
