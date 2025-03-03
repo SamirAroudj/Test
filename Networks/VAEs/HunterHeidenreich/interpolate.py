@@ -3,10 +3,9 @@ import torch
 import matplotlib.pyplot as plt
 
 
-def interpolate(model, device, run_dir) -> None:
+def interpolate(model, device, run_dir, n: int = 16) -> None:
     print("Interpolating example numbers.")
 
-    n = 15
     z1 = torch.linspace(-0, 1, n)
     z2 = torch.zeros_like(z1) + 2
     z = torch.stack([z1, z2], dim=-1).to(device)

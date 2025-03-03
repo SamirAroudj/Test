@@ -1,3 +1,5 @@
+
+import argparse
 import os
 import torch
 from data import get_mnist_loaders
@@ -5,22 +7,35 @@ from datetime import datetime
 from interpolate import interpolate
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
+from typing import Any, Dict
 from vae import VAE
 
+SimpleConfig = Dict[str, Any]
 
-def train(model, device, dataloader, batch_size: int, optimizer, prev_updates, writer=None):
+def get_config() -> SimpleConfig:
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument("--epochs", "-e", type=int, required=False, default=50)
+    parser.add_argument("--model", "-m", type=str, required=False, default="")
+
+    args = parser.parse_args()
+    cmd_args = vars(args)
+    return cmd_args
+
+
+def train(model, device: torch.device, data_loader, batch_size: int, optimizer, prev_updates: int = 0, writer: SummaryWriter = None) -> int:
     """
     Trains the model on the given data.
     
     Args:
         model (nn.Module): The model to train.
-        dataloader (torch.utils.data.DataLoader): The data loader.
+        data_loader (torch.utils.data.data_loader): The data loader.
         loss_fn: The loss function.
         optimizer: The optimizer.
     """
     model.train()  # Set the model to training mode
     
-    for batch_idx, (data, target) in enumerate(tqdm(dataloader)):
+    for batch_idx, (data, target) in enumerate(tqdm(data_loader)):
         n_upd = prev_updates + batch_idx
         
         data = data.to(device)
@@ -55,16 +70,16 @@ def train(model, device, dataloader, batch_size: int, optimizer, prev_updates, w
         
         optimizer.step()  # Update the model parameters
         
-    return prev_updates + len(dataloader)
+    return prev_updates + len(data_loader)
 
 
-def test(model, latent_dim: int, device, dataloader, cur_step, writer=None):
+def test(model, latent_dim: int, device, data_loader, cur_step, writer: SummaryWriter = None):
     """
     Tests the model on the given data.
     
     Args:
         model (nn.Module): The model to test.
-        dataloader (torch.utils.data.DataLoader): The data loader.
+        data_loader (torch.utils.data.data_loader): The data loader.
         cur_step (int): The current step.
         writer: The TensorBoard writer.
     """
@@ -74,7 +89,7 @@ def test(model, latent_dim: int, device, dataloader, cur_step, writer=None):
     test_kl_loss = 0
     
     with torch.no_grad():
-        for data, target in tqdm(dataloader, desc='Testing'):
+        for data, target in tqdm(data_loader, desc='Testing'):
             data = data.to(device)
             data = data.view(data.size(0), -1)  # Flatten the data
             
@@ -84,9 +99,9 @@ def test(model, latent_dim: int, device, dataloader, cur_step, writer=None):
             test_recon_loss += output.loss_recon.item()
             test_kl_loss += output.loss_kl.item()
             
-    test_loss /= len(dataloader)
-    test_recon_loss /= len(dataloader)
-    test_kl_loss /= len(dataloader)
+    test_loss /= len(data_loader)
+    test_recon_loss /= len(data_loader)
+    test_kl_loss /= len(data_loader)
     print(f'====> Test set loss: {test_loss:.4f} (BCE: {test_recon_loss:.4f}, KLD: {test_kl_loss:.4f})')
     
     if writer is not None:
@@ -105,10 +120,10 @@ def test(model, latent_dim: int, device, dataloader, cur_step, writer=None):
         writer.add_images('Test/Samples', samples.view(-1, 1, 28, 28), global_step=cur_step)
 
 
-def run(output_dir: str, verbose: bool = False) -> None:
+def run(output_dir: str, config: SimpleConfig, verbose: bool = False) -> None:
     learning_rate = 1e-3
     weight_decay = 1e-2
-    num_epochs = 50
+    num_epochs = config["epochs"]
     latent_dim = 2
     hidden_dim = 512
     batch_size = 128
@@ -127,7 +142,11 @@ def run(output_dir: str, verbose: bool = False) -> None:
 
     # model & optimizer
     print("Creating VAE model and optimizer.")
-    model = VAE(input_dim=784, hidden_dim=hidden_dim, latent_dim=latent_dim).to(device)
+    model_file_name = config["model"]
+    if len(model_file_name) > 0:
+        model = torch.load(model_file_name, weights_only=False)
+    else:
+        model = VAE(input_dim=784, hidden_dim=hidden_dim, latent_dim=latent_dim).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
 
     # logger
@@ -149,12 +168,17 @@ def run(output_dir: str, verbose: bool = False) -> None:
         prev_updates = train(model, device, train_loader, batch_size, optimizer, prev_updates, writer=writer)
         test(model, latent_dim, device, test_loader, prev_updates, writer=writer)
 
+        model_state = model.state_dict()
+        file_name = os.path.join(run_dir, f"Model{epoch}.pt")
+        torch.save(model_state, file_name)
+
     interpolate(model, device, run_dir=run_dir)
 
 def main():
     verbose = True
     output_dir = "/home/samir/DevData/WorkingDirectory/Test/VAE/MNIST"
-    run(output_dir=output_dir, verbose=verbose)
+    config = get_config()
+    run(output_dir=output_dir, config=config, verbose=verbose)
 
 if __name__ == "__main__":
     main()
